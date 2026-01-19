@@ -38,11 +38,11 @@ def preprocess_image(image: np.ndarray) -> np.ndarray:
     
     # Invert colors: ink becomes white, background becomes black
     inverted = cv2.bitwise_not(binary)
-    
+
     return inverted
 
 
-def extract_line_masks(image: np.ndarray, kernel_scale: float = 0.02) -> tuple:
+def extract_line_masks(image: np.ndarray, kernel_scale: float = 0.01) -> tuple:
     """
     Extract horizontal and vertical line masks using morphological operations.
     

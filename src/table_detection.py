@@ -298,7 +298,7 @@ def trim_cell_borders(cell_image: np.ndarray, margin_percent: float = 10) -> np.
 
 def detect_filled_cell(
     cell_image: np.ndarray,
-    ink_threshold: float = 0.25
+    ink_threshold: float = 0.15
 ) -> bool:
     """
     Detect if a cell is filled by the student.
@@ -317,8 +317,9 @@ def detect_filled_cell(
     
     # Count white pixels (ink) in the cell
     white_pixels = np.sum(cell_image > 128)
-    print(white_pixels)
-    print(cell_image.size)
+    # # Debugging prints to verify pixel counts and adapt cell margin trim and ink threshold
+    # print(white_pixels) 
+    # print(cell_image.size)
     total_pixels = cell_image.size
     
     ink_fraction = white_pixels / total_pixels

@@ -288,11 +288,10 @@ class OMRGrader:
             # Detect filled cells
             filled_indices = []
             for a_idx, cell in enumerate(question_cells):
-                print(q_idx, a_idx)
+                # print(q_idx, a_idx) #Debugging prints to verify pixel counts and adapt cell margin trim and ink threshold
                 cell_trimmed = trim_cell_borders(cell, margin_percent=cell_margin_trim)
                 if detect_filled_cell(cell_trimmed):
                     filled_indices.append(a_idx)
-                print(' ')
 
             # Determine answer
             if len(filled_indices) == 0:
@@ -381,7 +380,7 @@ class OMRGrader:
             image_np = np.array(image)
             
             # Process page
-            cell_margin_trim = 20.  # Percentage of cell size to trim from borders
+            cell_margin_trim = 25.  # Percentage of cell size to trim from borders
             result = self.process_student_page(image_np, student_id, cell_margin_trim)
             results.append(result)
         
