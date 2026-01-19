@@ -70,7 +70,7 @@ class OMRGrader:
         if table_format not in ['columns=questions', 'rows=questions']:
             raise ValueError(f"Invalid table format: {table_format}")
     
-    def process_student_page(self, image: np.ndarray, student_id: str) -> StudentResult:
+    def process_student_page(self, image: np.ndarray, student_id: str, cell_margin_trim: float) -> StudentResult:
         """
         Process a single student's answer sheet page.
         
@@ -106,6 +106,7 @@ class OMRGrader:
                         vertical_separators,
                         [],
                         student_id,
+                        cell_margin_trim,
                         self._current_h_mask,
                         self._current_v_mask,
                         self._current_grid_mask
@@ -121,7 +122,8 @@ class OMRGrader:
             student_answers, has_ambiguous = self._extract_student_answers(
                 rectified_image,
                 horizontal_separators,
-                vertical_separators
+                vertical_separators,
+                cell_margin_trim
             )
             
             # Grade the student
@@ -144,6 +146,7 @@ class OMRGrader:
                 vertical_separators,
                 student_answers,
                 student_id,
+                cell_margin_trim,
                 self._current_h_mask,
                 self._current_v_mask,
                 self._current_grid_mask
@@ -257,7 +260,8 @@ class OMRGrader:
         self,
         rectified_image: np.ndarray,
         horizontal_separators: List[int],
-        vertical_separators: List[int]
+        vertical_separators: List[int],
+        cell_margin_trim: float
     ) -> Tuple[List[int], bool]:
         """
         Extract student's answers from the table.
@@ -285,7 +289,7 @@ class OMRGrader:
             filled_indices = []
             for a_idx, cell in enumerate(question_cells):
                 print(q_idx, a_idx)
-                cell_trimmed = trim_cell_borders(cell, margin_percent=1)
+                cell_trimmed = trim_cell_borders(cell, margin_percent=cell_margin_trim)
                 if detect_filled_cell(cell_trimmed):
                     filled_indices.append(a_idx)
                 print(' ')
@@ -311,6 +315,7 @@ class OMRGrader:
         vertical_separators: List[int],
         student_answers: List[int],
         student_id: str,
+        cell_margin_trim: float,
         h_mask: np.ndarray = None,
         v_mask: np.ndarray = None,
         grid_mask: np.ndarray = None
@@ -325,6 +330,7 @@ class OMRGrader:
                     vertical_separators,
                     student_answers,
                     self.table_format,
+                    cell_margin_trim,
                     h_mask,
                     v_mask,
                     grid_mask
@@ -335,7 +341,8 @@ class OMRGrader:
                     horizontal_separators,
                     vertical_separators,
                     student_answers,
-                    self.table_format
+                    self.table_format,
+                    cell_margin_trim
                 )
             
             # Save debug image
@@ -374,7 +381,8 @@ class OMRGrader:
             image_np = np.array(image)
             
             # Process page
-            result = self.process_student_page(image_np, student_id)
+            cell_margin_trim = 20.  # Percentage of cell size to trim from borders
+            result = self.process_student_page(image_np, student_id, cell_margin_trim)
             results.append(result)
         
         # Convert results to DataFrame

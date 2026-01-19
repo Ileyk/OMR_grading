@@ -88,6 +88,7 @@ def create_composite_debug_image(
     vertical_separators: List[int],
     student_answers: List[int],
     table_format: str,
+    cell_margin_trim: float,
     horizontal_mask: Optional[np.ndarray] = None,
     vertical_mask: Optional[np.ndarray] = None,
     grid_mask: Optional[np.ndarray] = None
@@ -114,7 +115,8 @@ def create_composite_debug_image(
         horizontal_separators,
         vertical_separators,
         student_answers,
-        table_format
+        table_format,
+        cell_margin_trim
     )
     
     # If no masks provided, just return the cell grid
@@ -191,7 +193,8 @@ def draw_cell_grid_with_answers(
     horizontal_separators: List[int],
     vertical_separators: List[int],
     student_answers: List[int],
-    table_format: str
+    table_format: str,
+    cell_margin_trim: float
 ) -> np.ndarray:
     """
     Draw cell grid with answer highlights on rectified image.
@@ -238,18 +241,19 @@ def draw_cell_grid_with_answers(
             if answer_idx == -2:
                 # Ambiguous - red (mark first answer row as indicator)
                 if len(h_sep) >= 3:  # Need at least 3 separators (outer + header + first cell)
-                    y1 = h_sep[0 + 1]
-                    y2 = h_sep[0 + 2]
-                    x1 = v_sep[q_idx + 1]
-                    x2 = v_sep[q_idx + 2]
+                    y1 = h_sep[0+1] + int ( (h_sep[0+1+1]-h_sep[0+1]) * cell_margin_trim/100 )
+                    # y2 = h_sep[0 + 2]
+                    y2 = h_sep[-1] - int ( (h_sep[0+1+1]-h_sep[0+1]) * cell_margin_trim/100 )
+                    x1 = v_sep[q_idx + 1] + int( (v_sep[q_idx+2]-v_sep[q_idx+1]) * cell_margin_trim/100 )
+                    x2 = v_sep[q_idx + 2] - int( (v_sep[q_idx+2]-v_sep[q_idx+1]) * cell_margin_trim/100 )
                     cv2.rectangle(debug_image, (x1, y1), (x2, y2), (0, 0, 255), 3)
             elif answer_idx >= 0:
                 # Filled - green
                 if answer_idx + 2 < len(h_sep):
-                    y1 = h_sep[answer_idx + 1]
-                    y2 = h_sep[answer_idx + 2]
-                    x1 = v_sep[q_idx + 1]
-                    x2 = v_sep[q_idx + 2]
+                    y1 = h_sep[answer_idx + 1] + int ( (h_sep[0+1+1]-h_sep[0+1]) * cell_margin_trim/100 )
+                    y2 = h_sep[answer_idx + 2] - int ( (h_sep[0+1+1]-h_sep[0+1]) * cell_margin_trim/100 )
+                    x1 = v_sep[q_idx + 1] + int( (v_sep[q_idx+2]-v_sep[q_idx+1]) * cell_margin_trim/100 )
+                    x2 = v_sep[q_idx + 2] - int( (v_sep[q_idx+2]-v_sep[q_idx+1]) * cell_margin_trim/100 )
                     cv2.rectangle(debug_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
     
     elif table_format == 'rows=questions':
@@ -262,18 +266,19 @@ def draw_cell_grid_with_answers(
             if answer_idx == -2:
                 # Ambiguous - red (mark first answer column as indicator)
                 if len(v_sep) >= 3:  # Need at least 3 separators (outer + header + first cell)
-                    x1 = v_sep[0 + 1]
-                    x2 = v_sep[0 + 2]
-                    y1 = h_sep[q_idx + 1]
-                    y2 = h_sep[q_idx + 2]
+                    x1 = v_sep[0 + 1] + int( (v_sep[q_idx+2]-v_sep[q_idx+1]) * cell_margin_trim/100 )
+                    # x2 = v_sep[0 + 2]
+                    x2 = v_sep[-1] - int( (v_sep[q_idx+2]-v_sep[q_idx+1]) * cell_margin_trim/100 )
+                    y1 = h_sep[q_idx + 1] + int ( (h_sep[0+1+1]-h_sep[0+1]) * cell_margin_trim/100 )
+                    y2 = h_sep[q_idx + 2] - int ( (h_sep[0+1+1]-h_sep[0+1]) * cell_margin_trim/100 )
                     cv2.rectangle(debug_image, (x1, y1), (x2, y2), (0, 0, 255), 3)
             elif answer_idx >= 0:
                 # Filled - green
                 if answer_idx + 2 < len(v_sep):
-                    x1 = v_sep[answer_idx + 1]
-                    x2 = v_sep[answer_idx + 2]
-                    y1 = h_sep[q_idx + 1]
-                    y2 = h_sep[q_idx + 2]
+                    x1 = v_sep[answer_idx + 1] + int( (v_sep[q_idx+2]-v_sep[q_idx+1]) * cell_margin_trim/100 )  
+                    x2 = v_sep[answer_idx + 2] - int( (v_sep[q_idx+2]-v_sep[q_idx+1]) * cell_margin_trim/100 )
+                    y1 = h_sep[q_idx + 1] + int ( (h_sep[0+1+1]-h_sep[0+1]) * cell_margin_trim/100 )
+                    y2 = h_sep[q_idx + 2] - int ( (h_sep[0+1+1]-h_sep[0+1]) * cell_margin_trim/100 )
                     cv2.rectangle(debug_image, (x1, y1), (x2, y2), (0, 255, 0), 2)
     
     return debug_image
