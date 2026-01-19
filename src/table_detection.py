@@ -5,13 +5,25 @@ import numpy as np
 from typing import List, Tuple
 
 
-def extract_separators(grid_mask: np.ndarray, axis: str = 'horizontal') -> List[int]:
+def extract_separators(
+    grid_mask: np.ndarray, 
+    axis: str = 'horizontal',
+    num_questions: int = None,
+    num_answers: int = None,
+    table_format: str = None
+) -> List[int]:
     """
-    Extract separator positions by summing pixels along an axis and finding peaks.
+    Extract separator positions using uniform spacing assumption.
+    
+    Assumes separators are uniformly spaced. Uses table dimensions to estimate
+    spacing and find separators at regular intervals.
     
     Args:
         grid_mask: Binary grid mask
         axis: 'horizontal' or 'vertical'
+        num_questions: Number of questions
+        num_answers: Number of possible answers
+        table_format: 'columns=questions' or 'rows=questions'
         
     Returns:
         List of separator positions (pixel coordinates)
@@ -19,24 +31,25 @@ def extract_separators(grid_mask: np.ndarray, axis: str = 'horizontal') -> List[
     if axis == 'horizontal':
         # Sum along horizontal axis to get vertical positions of horizontal lines
         signal = np.sum(grid_mask, axis=1)
+        size = grid_mask.shape[0]
     elif axis == 'vertical':
         # Sum along vertical axis to get horizontal positions of vertical lines
         signal = np.sum(grid_mask, axis=0)
+        size = grid_mask.shape[1]
     else:
         raise ValueError(f"Invalid axis: {axis}")
-    
+
     # Normalize signal
     signal = signal / np.max(signal) if np.max(signal) > 0 else signal
     
-    # Apply threshold to find peaks
-    threshold = 0.3  # Threshold for peak detection
-    peaks = np.where(signal > threshold)[0]
-    
-    if len(peaks) == 0:
-        raise ValueError(f"No peaks found for {axis} axis")
-    
-    # Merge adjacent peaks (clusters) by taking centroids
-    separators = _merge_peaks(peaks)
+    # If table dimensions provided, use uniform spacing
+    if num_questions and num_answers and table_format:
+        separators = _extract_separators_uniform_spacing(
+            signal, size, axis, num_questions, num_answers, table_format
+        )
+    else:
+        # Fallback to peak detection
+        separators = _extract_separators_peak_detection(signal)
     
     return separators
 
@@ -71,6 +84,90 @@ def _merge_peaks(peaks: np.ndarray, gap_threshold: int = 5) -> List[int]:
     # Don't forget the last cluster
     centroid = int(np.mean(current_cluster))
     separators.append(centroid)
+    
+    return separators
+
+
+def _extract_separators_uniform_spacing(
+    signal: np.ndarray,
+    size: int,
+    axis: str,
+    num_questions: int,
+    num_answers: int,
+    table_format: str
+) -> List[int]:
+    """
+    Extract separators assuming uniform spacing based on table dimensions.
+    
+    Calculates expected number of separators and spacing, then finds peak positions
+    near expected locations using a sliding window approach.
+    
+    Args:
+        signal: 1D intensity signal (normalized)
+        size: Size of the signal (image dimension along axis)
+        axis: 'horizontal' or 'vertical'
+        num_questions: Number of questions
+        num_answers: Number of possible answers
+        table_format: 'columns=questions' or 'rows=questions'
+        
+    Returns:
+        List of separator positions
+    """
+    # Determine expected number of separators
+    if axis == 'horizontal':
+        if table_format == 'columns=questions':
+            expected_count = num_answers + 2  # P answers + header + bottom edge
+        else:
+            expected_count = num_questions + 2  # Q questions + header + bottom edge
+    else:  # vertical
+        if table_format == 'columns=questions':
+            expected_count = num_questions + 2  # Q questions + left edge + right edge
+        else:
+            expected_count = num_answers + 2  # P answers + left edge + right edge
+    
+    # Estimate expected spacing
+    expected_spacing = size / (expected_count - 1)
+    
+    # For each expected position, find the nearest peak
+    separators = []
+    window_size = int(expected_spacing * 0.4)  # Search window: ±40% of spacing
+    
+    for i in range(expected_count):
+        expected_pos = i * expected_spacing
+        search_start = max(0, int(expected_pos - window_size))
+        search_end = min(size, int(expected_pos + window_size))
+        
+        # Find the position with maximum signal in this window
+        if search_start < search_end:
+            window_signal = signal[search_start:search_end]
+            local_max_idx = np.argmax(window_signal)
+            peak_pos = search_start + local_max_idx
+            separators.append(peak_pos)
+    
+    return separators
+
+
+def _extract_separators_peak_detection(signal: np.ndarray) -> List[int]:
+    """
+    Extract separators using peak detection on the signal.
+    
+    Fallback method when table dimensions are not provided.
+    
+    Args:
+        signal: 1D intensity signal (normalized)
+        
+    Returns:
+        List of separator positions
+    """
+    # Apply threshold to find peaks
+    threshold = 0.3
+    peaks = np.where(signal > threshold)[0]
+    
+    if len(peaks) == 0:
+        raise ValueError("No peaks found in signal - grid mask may be empty")
+    
+    # Merge adjacent peaks (clusters) by taking centroids
+    separators = _merge_peaks(peaks)
     
     return separators
 

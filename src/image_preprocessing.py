@@ -54,15 +54,15 @@ def extract_line_masks(image: np.ndarray, kernel_scale: float = 0.02) -> tuple:
         Tuple of (horizontal_mask, vertical_mask, combined_grid_mask)
     """
     height, width = image.shape
-    
+
     # Calculate kernel sizes based on image dimensions
     horizontal_kernel_size = max(int(width * kernel_scale), 3)
     vertical_kernel_size = max(int(height * kernel_scale), 3)
-    
+
     # Ensure odd kernel sizes
     horizontal_kernel_size = horizontal_kernel_size if horizontal_kernel_size % 2 == 1 else horizontal_kernel_size + 1
     vertical_kernel_size = vertical_kernel_size if vertical_kernel_size % 2 == 1 else vertical_kernel_size + 1
-    
+
     # Create kernels for morphological operations
     horizontal_kernel = cv2.getStructuringElement(
         cv2.MORPH_RECT,
@@ -72,16 +72,16 @@ def extract_line_masks(image: np.ndarray, kernel_scale: float = 0.02) -> tuple:
         cv2.MORPH_RECT,
         (1, vertical_kernel_size)
     )
-    
+
     # Extract horizontal lines (opening operation keeps long horizontal strokes)
     horizontal_mask = cv2.morphologyEx(image, cv2.MORPH_OPEN, horizontal_kernel)
-    
+
     # Extract vertical lines (opening operation keeps long vertical strokes)
     vertical_mask = cv2.morphologyEx(image, cv2.MORPH_OPEN, vertical_kernel)
-    
+
     # Combine masks
     grid_mask = cv2.bitwise_or(horizontal_mask, vertical_mask)
-    
+
     return horizontal_mask, vertical_mask, grid_mask
 
 
@@ -156,20 +156,21 @@ def order_corners(corners: np.ndarray) -> np.ndarray:
     Returns:
         Ordered corners array
     """
-    # Calculate centroid
-    centroid = np.mean(corners, axis=0)
-    
-    # Sort by angle from centroid
-    angles = np.arctan2(corners[:, 1] - centroid[1], corners[:, 0] - centroid[0])
-    sorted_indices = np.argsort(angles)
-    
-    # Reorder to get: top-left, top-right, bottom-right, bottom-left
-    ordered = corners[sorted_indices]
-    
-    # Ensure top-left has smallest y value
-    if ordered[0, 1] > ordered[1, 1]:
-        ordered = np.roll(ordered, 1, axis=0)
-    
+    # Robust corner ordering using sums and differences
+    # Sum (x+y) -> top-left has smallest sum, bottom-right has largest sum
+    # Diff (x-y) -> top-right has smallest diff, bottom-left has largest diff
+    pts = corners.reshape((4, 2))
+
+    s = pts.sum(axis=1)
+    diff = np.diff(pts, axis=1).reshape(4)
+
+    tl = pts[np.argmin(s)]
+    br = pts[np.argmax(s)]
+    tr = pts[np.argmin(diff)]
+    bl = pts[np.argmax(diff)]
+
+    ordered = np.array([tl, tr, br, bl], dtype=np.float32)
+
     return ordered
 
 

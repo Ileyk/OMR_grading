@@ -22,7 +22,7 @@ from src.table_detection import (
     detect_filled_cell
 )
 from src.grading import GradingRule, StudentResult, grade_student_answers
-from src.debug_visualization import draw_cell_grid_with_answers
+from src.debug_visualization import draw_cell_grid_with_answers, create_composite_debug_image
 
 
 class OMRGrader:
@@ -84,7 +84,11 @@ class OMRGrader:
         
         try:
             # Step 2.1: Detect table edges and perspective correction
-            rectified_image, bounding_rect, grid_mask, corners = self._detect_table(image)
+            rectified_image, bounding_rect, grid_mask, corners, h_mask, v_mask, full_grid_mask = self._detect_table(image)
+            # Store masks for later debug use
+            self._current_h_mask = h_mask
+            self._current_v_mask = v_mask
+            self._current_grid_mask = full_grid_mask
             
             # Step 2.2: Validate table dimensions
             is_valid, message = self._validate_table(rectified_image, grid_mask)
@@ -92,6 +96,21 @@ class OMRGrader:
             if not is_valid:
                 result.has_extraction_issues = True
                 result.error_message = message
+                # Still create debug image to see what was detected
+                try:
+                    horizontal_separators, vertical_separators = self._extract_separators_from_rectified(rectified_image)
+                    self._create_debug_image(
+                        rectified_image,
+                        horizontal_separators,
+                        vertical_separators,
+                        [],
+                        student_id,
+                        self._current_h_mask,
+                        self._current_v_mask,
+                        self._current_grid_mask
+                    )
+                except:
+                    pass  # If debug fails, just skip it
                 return result
             
             # Extract separators on rectified image
@@ -123,7 +142,10 @@ class OMRGrader:
                 horizontal_separators,
                 vertical_separators,
                 student_answers,
-                student_id
+                student_id,
+                self._current_h_mask,
+                self._current_v_mask,
+                self._current_grid_mask
             )
             
         except Exception as e:
@@ -132,18 +154,18 @@ class OMRGrader:
         
         return result
     
-    def _detect_table(self, image: np.ndarray) -> Tuple[np.ndarray, Tuple, np.ndarray, np.ndarray]:
+    def _detect_table(self, image: np.ndarray) -> Tuple[np.ndarray, Tuple, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Detect and correct table perspective.
         
         Returns:
-            Tuple of (rectified_image, bounding_rect, grid_mask, corners)
+            Tuple of (rectified_image, bounding_rect, grid_mask, corners, h_mask, v_mask, grid_mask)
         """
         # A. Preprocess image
         preprocessed = preprocess_image(image)
         
         # B. Extract line masks
-        _, _, grid_mask = extract_line_masks(preprocessed)
+        h_mask, v_mask, grid_mask = extract_line_masks(preprocessed)
         
         # C. Find table candidate
         bounding_rect, contour = find_table_bounding_box(grid_mask)
@@ -156,7 +178,12 @@ class OMRGrader:
         corners_color = detect_corner_points(contour, bounding_rect)
         rectified_color, _, _ = perspective_correction(image, corners_color)
         
-        return rectified_color, bounding_rect, rectified, corners
+        # Store masks for debug visualization
+        self._last_h_mask = h_mask
+        self._last_v_mask = v_mask
+        self._last_grid_mask = grid_mask
+        
+        return rectified_color, bounding_rect, rectified, corners, h_mask, v_mask, grid_mask
     
     def _validate_table(self, rectified_image: np.ndarray, grid_mask: np.ndarray) -> Tuple[bool, str]:
         """
@@ -168,12 +195,21 @@ class OMRGrader:
         # A. Recompute line masks
         _, _, grid_mask_rectified = extract_line_masks(grid_mask)
         
-        # B & C. Extract separators
-        try:
-            horizontal_separators = extract_separators(grid_mask_rectified, axis='horizontal')
-            vertical_separators = extract_separators(grid_mask_rectified, axis='vertical')
-        except ValueError as e:
-            return False, f"Failed to extract separators: {str(e)}"
+        # B & C. Extract separators with uniform spacing
+        horizontal_separators = extract_separators(
+            grid_mask_rectified,
+            axis='horizontal',
+            num_questions=self.num_questions,
+            num_answers=self.num_answers,
+            table_format=self.table_format
+        )
+        vertical_separators = extract_separators(
+            grid_mask_rectified,
+            axis='vertical',
+            num_questions=self.num_questions,
+            num_answers=self.num_answers,
+            table_format=self.table_format
+        )
         
         # D. Validate dimensions
         is_valid, message = validate_table_dimensions(
@@ -198,9 +234,21 @@ class OMRGrader:
         # Extract line masks
         _, _, grid_mask = extract_line_masks(preprocessed)
         
-        # Extract separators
-        horizontal_separators = extract_separators(grid_mask, axis='horizontal')
-        vertical_separators = extract_separators(grid_mask, axis='vertical')
+        # Extract separators with uniform spacing
+        horizontal_separators = extract_separators(
+            grid_mask,
+            axis='horizontal',
+            num_questions=self.num_questions,
+            num_answers=self.num_answers,
+            table_format=self.table_format
+        )
+        vertical_separators = extract_separators(
+            grid_mask,
+            axis='vertical',
+            num_questions=self.num_questions,
+            num_answers=self.num_answers,
+            table_format=self.table_format
+        )
         
         return horizontal_separators, vertical_separators
     
@@ -258,20 +306,43 @@ class OMRGrader:
         horizontal_separators: List[int],
         vertical_separators: List[int],
         student_answers: List[int],
-        student_id: str
+        student_id: str,
+        h_mask: np.ndarray = None,
+        v_mask: np.ndarray = None,
+        grid_mask: np.ndarray = None
     ):
-        """Create and save debug visualization."""
-        debug_image = draw_cell_grid_with_answers(
-            rectified_image,
-            horizontal_separators,
-            vertical_separators,
-            student_answers,
-            self.table_format
-        )
-        
-        # Save debug image
-        debug_path = os.path.join(self.debug_dir, f"{student_id}_debug.png")
-        cv2.imwrite(debug_path, debug_image)
+        """Create and save debug visualization with optional line masks."""
+        try:
+            # Create composite debug image with masks if available
+            if h_mask is not None or v_mask is not None or grid_mask is not None:
+                debug_image = create_composite_debug_image(
+                    rectified_image,
+                    horizontal_separators,
+                    vertical_separators,
+                    student_answers,
+                    self.table_format,
+                    h_mask,
+                    v_mask,
+                    grid_mask
+                )
+            else:
+                debug_image = draw_cell_grid_with_answers(
+                    rectified_image,
+                    horizontal_separators,
+                    vertical_separators,
+                    student_answers,
+                    self.table_format
+                )
+            
+            # Save debug image
+            debug_path = os.path.join(self.debug_dir, f"{student_id}_debug.png")
+            success = cv2.imwrite(debug_path, debug_image)
+            if not success:
+                print(f"Warning: Failed to save debug image to {debug_path}")
+            else:
+                print(f"Debug image saved: {debug_path}")
+        except Exception as e:
+            print(f"Warning: Could not create debug image for {student_id}: {str(e)}")
     
     def process_pdf(self, pdf_path: str) -> pd.DataFrame:
         """
