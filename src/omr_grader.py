@@ -19,7 +19,8 @@ from src.table_detection import (
     validate_table_dimensions,
     extract_cell_regions,
     get_question_cells,
-    detect_filled_cell
+    detect_filled_cell,
+    trim_cell_borders
 )
 from src.grading import GradingRule, StudentResult, grade_student_answers
 from src.debug_visualization import draw_cell_grid_with_answers, create_composite_debug_image
@@ -283,9 +284,12 @@ class OMRGrader:
             # Detect filled cells
             filled_indices = []
             for a_idx, cell in enumerate(question_cells):
-                if detect_filled_cell(cell):
+                print(q_idx, a_idx)
+                cell_trimmed = trim_cell_borders(cell, margin_percent=1)
+                if detect_filled_cell(cell_trimmed):
                     filled_indices.append(a_idx)
-            
+                print(' ')
+
             # Determine answer
             if len(filled_indices) == 0:
                 # No answer

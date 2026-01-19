@@ -271,10 +271,34 @@ def get_question_cells(
     else:
         raise ValueError(f"Invalid table format: {table_format}")
 
+def trim_cell_borders(cell_image: np.ndarray, margin_percent: float = 10) -> np.ndarray:
+    """
+    Trim borders of a cell image by leaving a margin on each side.
+    
+    Args:
+        cell_image: Input cell image
+        margin_percent: Percentage of margin to leave on each side (0-100)
+        
+    Returns:
+        Trimmed cell image
+    """
+    if cell_image.size == 0:
+        return cell_image
+    
+    height, width = cell_image.shape[:2]
+    
+    margin_width = int(width * margin_percent / 100)
+    margin_height = int(height * margin_percent / 100)
+    
+    # Ensure margins don't exceed image dimensions
+    margin_width = min(margin_width, width // 2)
+    margin_height = min(margin_height, height // 2)
+    
+    return cell_image[margin_height:height-margin_height, margin_width:width-margin_width]
 
 def detect_filled_cell(
     cell_image: np.ndarray,
-    ink_threshold: float = 0.15
+    ink_threshold: float = 0.02
 ) -> bool:
     """
     Detect if a cell is filled by the student.
@@ -293,6 +317,8 @@ def detect_filled_cell(
     
     # Count white pixels (ink) in the cell
     white_pixels = np.sum(cell_image > 128)
+    print(white_pixels)
+    print(cell_image.size)
     total_pixels = cell_image.size
     
     ink_fraction = white_pixels / total_pixels
