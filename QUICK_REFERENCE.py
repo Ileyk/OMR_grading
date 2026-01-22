@@ -314,6 +314,30 @@ python main.py test.pdf \
   --correct-points 5.0 \
   --incorrect-points 0.0
 
+Configuration 5: from Phys1 test w/ thin lines overlaid (10-Question Test, 5 Answers)
+============================================
+python main.py tests/thin.pdf  \
+  --correct-answers 0 1 0 2 1 3 0 1 2 0 \
+  --num-answers 5 \
+  --table-format columns=questions \
+  --correct-points 1.0 \
+  --incorrect-points -0.25 \
+  --no-answer-points 0.0 \
+  --output-dir ./results \
+  --output-file grades.csv
+
+Configuration 6: from Phys2 test (10-Question Test, 4 Answers) (requires to add largest_contour=contours[-3] in image_preprocessing.py)
+============================================
+python main.py tests/phys2.pdf  \
+  --correct-answers 0 1 0 2 1 3 0 1 2 0 \
+  --num-answers 4 \
+  --table-format columns=questions \
+  --correct-points 1.0 \
+  --incorrect-points -0.25 \
+  --no-answer-points 0.0 \
+  --output-dir ./results \
+  --output-file grades.csv
+
 """
 
 # ==============================================================================

@@ -1,5 +1,6 @@
 """Image preprocessing utilities for OMR grading."""
 
+from multiprocessing.resource_sharer import stop
 import cv2
 import numpy as np
 
@@ -101,17 +102,24 @@ def find_table_bounding_box(grid_mask: np.ndarray) -> tuple:
     if not contours:
         raise ValueError("No contours found in grid mask")
     
-    # plot the contours which were found for debugging purposes
-    debug_image = cv2.cvtColor(grid_mask, cv2.COLOR_GRAY2BGR)
-    cv2.drawContours(debug_image, contours, -1, (0, 255, 0), 2)
-    cv2.imshow("Contours", debug_image)
-    cv2.waitKey(0)
-    cv2.destroyAllWindows()   
-    stop
+    # print the areas of each contour for debugging purposes, from smallest to largest
+    contours = sorted(contours, key=cv2.contourArea)
+
+    # # plot the contours which were found for debugging purposes
+    # for i, contour in enumerate(contours):
+    #     area = cv2.contourArea(contour)
+    #     print(f"Contour {i}: Area = {area}")
+    # debug_image = cv2.cvtColor(grid_mask, cv2.COLOR_GRAY2BGR)
+    # cv2.drawContours(debug_image, contours, -1, (0, 255, 0), 2)
+    # cv2.imshow("Contours", debug_image)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()   
+    # stop
 
     # Find the largest contour (should be the table)
-    largest_contour = max(contours, key=cv2.contourArea)
-    
+    # largest_contour = max(contours, key=cv2.contourArea)
+    largest_contour=contours[-1] # to be modified by-hand if there are spurious frames detected. By default, -1 (i.e. the largest).
+
     # Get bounding rectangle
     x, y, w, h = cv2.boundingRect(largest_contour)
     
